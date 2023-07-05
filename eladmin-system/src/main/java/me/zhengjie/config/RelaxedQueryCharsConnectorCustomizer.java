@@ -1,5 +1,5 @@
 /*
- *  Copyright 2019-2020 Zheng Jie
+ *  Copyright 2019-2023 Zheng Jie
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -13,33 +13,19 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package me.zhengjie.modules.system.domain.vo;
+package me.zhengjie.config;
 
-import lombok.Data;
-import java.io.Serializable;
-import java.util.List;
+import org.apache.catalina.connector.Connector;
+import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
+import org.springframework.context.annotation.Configuration;
 
 /**
- * 构建前端路由时用到
- * @author Zheng Jie
- * @date 2018-12-20
+ * @author bearBoy80
  */
-@Data
-public class MenuVo implements Serializable {
-
-    private String name;
-
-    private String path;
-
-    private Boolean hidden;
-
-    private String redirect;
-
-    private String component;
-
-    private Boolean alwaysShow;
-
-    private MenuMetaVo meta;
-
-    private List<MenuVo> children;
+@Configuration(proxyBeanMethods = false)
+public class RelaxedQueryCharsConnectorCustomizer implements TomcatConnectorCustomizer {
+    @Override
+    public void customize(Connector connector) {
+        connector.setProperty("relaxedQueryChars", "[]{}");
+    }
 }

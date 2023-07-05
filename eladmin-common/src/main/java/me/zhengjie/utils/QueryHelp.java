@@ -61,6 +61,7 @@ public class QueryHelp {
             }
         }
         try {
+            Map<String, Join> joinKey = new HashMap<>();
             List<Field> fields = getAllFields(query.getClass(), new ArrayList<>());
             for (Field field : fields) {
                 boolean accessible = field.isAccessible();
@@ -83,40 +84,43 @@ public class QueryHelp {
                         String[] blurrys = blurry.split(",");
                         List<Predicate> orPredicate = new ArrayList<>();
                         for (String s : blurrys) {
-                            orPredicate.add(cb.like(root.get(s)
-                                    .as(String.class), "%" + val.toString() + "%"));
+                            orPredicate.add(cb.like(root.get(s).as(String.class), "%" + val.toString() + "%"));
                         }
                         Predicate[] p = new Predicate[orPredicate.size()];
                         list.add(cb.or(orPredicate.toArray(p)));
                         continue;
                     }
                     if (ObjectUtil.isNotEmpty(joinName)) {
-                        String[] joinNames = joinName.split(">");
-                        for (String name : joinNames) {
-                            switch (q.join()) {
-                                case LEFT:
-                                    if(ObjectUtil.isNotNull(join) && ObjectUtil.isNotNull(val)){
-                                        join = join.join(name, JoinType.LEFT);
-                                    } else {
-                                        join = root.join(name, JoinType.LEFT);
-                                    }
-                                    break;
-                                case RIGHT:
-                                    if(ObjectUtil.isNotNull(join) && ObjectUtil.isNotNull(val)){
-                                        join = join.join(name, JoinType.RIGHT);
-                                    } else {
-                                        join = root.join(name, JoinType.RIGHT);
-                                    }
-                                    break;
-                                case INNER:
-                                    if(ObjectUtil.isNotNull(join) && ObjectUtil.isNotNull(val)){
-                                        join = join.join(name, JoinType.INNER);
-                                    } else {
-                                        join = root.join(name, JoinType.INNER);
-                                    }
-                                    break;
-                                default: break;
+                        join = joinKey.get(joinName);
+                        if(join == null){
+                            String[] joinNames = joinName.split(">");
+                            for (String name : joinNames) {
+                                switch (q.join()) {
+                                    case LEFT:
+                                        if(ObjectUtil.isNotNull(join) && ObjectUtil.isNotNull(val)){
+                                            join = join.join(name, JoinType.LEFT);
+                                        } else {
+                                            join = root.join(name, JoinType.LEFT);
+                                        }
+                                        break;
+                                    case RIGHT:
+                                        if(ObjectUtil.isNotNull(join) && ObjectUtil.isNotNull(val)){
+                                            join = join.join(name, JoinType.RIGHT);
+                                        } else {
+                                            join = root.join(name, JoinType.RIGHT);
+                                        }
+                                        break;
+                                    case INNER:
+                                        if(ObjectUtil.isNotNull(join) && ObjectUtil.isNotNull(val)){
+                                            join = join.join(name, JoinType.INNER);
+                                        } else {
+                                            join = root.join(name, JoinType.INNER);
+                                        }
+                                        break;
+                                    default: break;
+                                }
                             }
+                            joinKey.put(joinName, join);
                         }
                     }
                     switch (q.type()) {
@@ -173,6 +177,10 @@ public class QueryHelp {
                                 list.add(cb.between(getExpression(attributeName, join, root).as((Class<? extends Comparable>) between.get(0).getClass()),
                                         (Comparable) between.get(0), (Comparable) between.get(1)));
                             }
+                            break;
+                        case FIND_IN_SET:
+                            list.add(cb.greaterThan(cb.function("FIND_IN_SET", Integer.class,
+                                    cb.literal(val.toString()), root.get(attributeName)), 0));
                             break;
                         default: break;
                     }
