@@ -26,11 +26,12 @@
 |  github   |  https://github.com/elunez/eladmin   |  https://github.com/elunez/eladmin-web   |
 |  码云   |  https://gitee.com/elunez/eladmin   |  https://gitee.com/elunez/eladmin-web   |
 
-#### 赞助商 | Sponsor
-
-<a href="https://www.mingdao.com/?s=utm_79&utm_source=eladmin&utm_medium=banner&utm_campaign=github&utm_content=IT赋能业务" target="_blank">
-<img src="https://eladmin.vip/images/banner/index.png" alt="明道云零代码构建平台" style="width: 400px;border-radius: 2px;">
+#### VPS推荐
+<a href="https://bwh81.net/aff.php?aff=70876" target="_blank">
+<img src="https://eladmin.vip/images/banner/side.jpeg" alt="明道云零代码构建平台" style="width: 435px;border-radius: 2px;">
 </a>
+
+使用优惠码: `BWHNCXNVXV`，可获得 6.81% 的折扣， [查看介绍](https://eladmin.vip/pages/050101/)
 
 #### 主要特性
 - 使用最新技术栈，社区资源丰富。
