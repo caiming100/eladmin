@@ -30,7 +30,6 @@
 
 <a href="https://www.mingdao.com/?s=utm_79&utm_source=eladmin&utm_medium=banner&utm_campaign=github&utm_content=IT赋能业务" target="_blank">
 <img src="https://eladmin.vip/images/banner/mdy_index.png" alt="明道云零代码构建平台" style="width: 400px;border-radius: 2px;">
-</a>
 
 #### 主要特性
 - 使用最新技术栈，社区资源丰富。
