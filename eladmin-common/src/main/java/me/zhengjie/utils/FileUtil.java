@@ -1,5 +1,5 @@
 /*
- *  Copyright 2019-2020 Zheng Jie
+ *  Copyright 2019-2025 Zheng Jie
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -19,22 +19,25 @@ import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.poi.excel.BigExcelWriter;
 import cn.hutool.poi.excel.ExcelUtil;
+import lombok.extern.slf4j.Slf4j;
 import me.zhengjie.exception.BadRequestException;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
+
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * File工具类，扩展 hutool 工具包
@@ -42,9 +45,8 @@ import java.util.Map;
  * @author Zheng Jie
  * @date 2018-12-27
  */
+@Slf4j
 public class FileUtil extends cn.hutool.core.io.FileUtil {
-
-    private static final Logger log = LoggerFactory.getLogger(FileUtil.class);
 
     /**
      * 系统临时目录
@@ -108,7 +110,7 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
      * 获取文件扩展名，不带 .
      */
     public static String getExtensionName(String filename) {
-        if ((filename != null) && (filename.length() > 0)) {
+        if ((filename != null) && (!filename.isEmpty())) {
             int dot = filename.lastIndexOf('.');
             if ((dot > -1) && (dot < (filename.length() - 1))) {
                 return filename.substring(dot + 1);
@@ -121,9 +123,9 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
      * Java文件操作 获取不带扩展名的文件名
      */
     public static String getFileNameNoEx(String filename) {
-        if ((filename != null) && (filename.length() > 0)) {
+        if ((filename != null) && (!filename.isEmpty())) {
             int dot = filename.lastIndexOf('.');
-            if ((dot > -1) && (dot < (filename.length()))) {
+            if (dot > -1) {
                 return filename.substring(0, dot);
             }
         }
@@ -160,7 +162,7 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
         }
         OutputStream os = null;
         try {
-            os = new FileOutputStream(file);
+            os = Files.newOutputStream(file.toPath());
             int bytesRead;
             int len = 8192;
             byte[] buffer = new byte[len];
@@ -168,7 +170,7 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
                 os.write(buffer, 0, bytesRead);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         } finally {
             CloseUtil.close(os);
             CloseUtil.close(ins);
@@ -213,8 +215,25 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
         String tempPath = SYS_TEM_DIR + IdUtil.fastSimpleUUID() + ".xlsx";
         File file = new File(tempPath);
         BigExcelWriter writer = ExcelUtil.getBigWriter(file);
+        // 处理数据以防止CSV注入
+        List<Map<String, Object>> sanitizedList = list.parallelStream().map(map -> {
+            Map<String, Object> sanitizedMap = new HashMap<>();
+            map.forEach((key, value) -> {
+                if (value instanceof String) {
+                    String strValue = (String) value;
+                    // 检查并处理以特殊字符开头的值
+                    if (strValue.startsWith("=") || strValue.startsWith("+") || strValue.startsWith("-") || strValue.startsWith("@")) {
+                        strValue = "'" + strValue; // 添加单引号前缀
+                    }
+                    sanitizedMap.put(key, strValue);
+                } else {
+                    sanitizedMap.put(key, value);
+                }
+            });
+            return sanitizedMap;
+        }).collect(Collectors.toList());
         // 一次性写出内容，使用默认样式，强制输出标题
-        writer.write(list, true);
+        writer.write(sanitizedList, true);
         SXSSFSheet sheet = (SXSSFSheet)writer.getSheet();
         //上面需要强转SXSSFSheet  不然没有trackAllColumnsForAutoSizing方法
         sheet.trackAllColumnsForAutoSizing();
@@ -282,7 +301,7 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
         byte[] b = new byte[(int) file.length()];
         InputStream in = null;
         try {
-            in = new FileInputStream(file);
+            in = Files.newInputStream(file.toPath());
             try {
                 System.out.println(in.read(b));
             } catch (IOException e) {
@@ -387,7 +406,6 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
 
         return fileName;
     }
-
 
     public static String getMd5(File file) {
         return getMd5(getByte(file));
