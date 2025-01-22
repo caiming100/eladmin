@@ -27,7 +27,6 @@ import me.zhengjie.exception.EntityNotFoundException;
 import me.zhengjie.modules.system.repository.UserRepository;
 import me.zhengjie.modules.system.service.UserService;
 import me.zhengjie.modules.system.service.dto.*;
-import me.zhengjie.modules.system.service.mapstruct.UserLoginMapper;
 import me.zhengjie.modules.system.service.mapstruct.UserMapper;
 import me.zhengjie.utils.*;
 import org.springframework.data.domain.Page;
@@ -57,7 +56,6 @@ public class UserServiceImpl implements UserService {
     private final RedisUtils redisUtils;
     private final UserCacheManager userCacheManager;
     private final OnlineUserService onlineUserService;
-    private final UserLoginMapper userLoginMapper;
 
     @Override
     public PageResult<UserDto> queryAll(UserQueryCriteria criteria, Pageable pageable) {
@@ -121,6 +119,7 @@ public class UserServiceImpl implements UserService {
             redisUtils.del(CacheKey.DATA_USER + resources.getId());
             redisUtils.del(CacheKey.MENU_USER + resources.getId());
             redisUtils.del(CacheKey.ROLE_AUTH + resources.getId());
+            redisUtils.del(CacheKey.ROLE_USER + resources.getId());
         }
         // 修改部门会影响 数据权限
         if (!Objects.equals(resources.getDept(),user.getDept())) {
@@ -182,12 +181,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserLoginDto getLoginData(String userName) {
+    public UserDto getLoginData(String userName) {
         User user = userRepository.findByUsername(userName);
         if (user == null) {
             return null;
         } else {
-            return userLoginMapper.toDto(user);
+            return userMapper.toDto(user);
         }
     }
 
@@ -201,6 +200,15 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void resetPwd(Set<Long> ids, String pwd) {
+        List<User> users = userRepository.findAllById(ids);
+        // 清除缓存
+        users.forEach(user -> {
+            // 清除缓存
+            flushCache(user.getUsername());
+            // 强制退出
+            onlineUserService.kickOutForUsername(user.getUsername());
+        });
+        // 重置密码
         userRepository.resetPwd(ids, pwd);
     }
 

@@ -18,13 +18,15 @@ package me.zhengjie.modules.security.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.zhengjie.exception.BadRequestException;
+import me.zhengjie.modules.security.service.dto.AuthorityDto;
 import me.zhengjie.modules.security.service.dto.JwtUserDto;
 import me.zhengjie.modules.system.service.DataService;
 import me.zhengjie.modules.system.service.RoleService;
 import me.zhengjie.modules.system.service.UserService;
-import me.zhengjie.modules.system.service.dto.UserLoginDto;
+import me.zhengjie.modules.system.service.dto.UserDto;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
+import java.util.List;
 
 /**
  * @author Zheng Jie
@@ -43,14 +45,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     public JwtUserDto loadUserByUsername(String username) {
         JwtUserDto jwtUserDto = userCacheManager.getUserCache(username);
         if(jwtUserDto == null){
-            UserLoginDto user = userService.getLoginData(username);
+            UserDto user = userService.getLoginData(username);
             if (user == null) {
                 throw new BadRequestException("用户不存在");
             } else {
                 if (!user.getEnabled()) {
                     throw new BadRequestException("账号未激活！");
                 }
-                jwtUserDto = new JwtUserDto(user, dataService.getDeptIds(user), roleService.buildAuthorities(user), user.getPassword());
+                // 获取用户的权限
+                List<AuthorityDto> authorities = roleService.buildPermissions(user);
+                // 初始化JwtUserDto
+                jwtUserDto = new JwtUserDto(user, dataService.getDeptIds(user), authorities, user.getPassword());
                 // 添加缓存数据
                 userCacheManager.addUserCache(username, jwtUserDto);
             }
