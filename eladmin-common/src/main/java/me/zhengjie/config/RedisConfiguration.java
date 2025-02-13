@@ -15,12 +15,15 @@
  */
 package me.zhengjie.config;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.parser.ParserConfig;
-import com.alibaba.fastjson.serializer.SerializerFeature;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONWriter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.codec.digest.MurmurHash3;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.cache.Cache;
+import org.springframework.cache.annotation.CachingConfigurerSupport;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.cache.interceptor.KeyGenerator;
@@ -33,8 +36,8 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
@@ -47,7 +50,11 @@ import java.util.Map;
 @Slf4j
 @Configuration
 @EnableCaching
-public class RedisConfiguration {
+@AutoConfigureBefore(RedisAutoConfiguration.class)
+public class RedisConfiguration extends CachingConfigurerSupport {
+
+    // 自动识别json对象白名单配置（仅允许解析的包名，范围越小越安全）
+    private static final String[] WHITELIST_STR = {"me.zhengjie" };
 
     /**
      *  设置 redis 数据默认过期时间，默认2小时
@@ -65,25 +72,15 @@ public class RedisConfiguration {
     @Bean(name = "redisTemplate")
     public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<Object, Object> template = new RedisTemplate<>();
-        //序列化
+        // 指定 key 和 value 的序列化方案
         FastJsonRedisSerializer<Object> fastJsonRedisSerializer = new FastJsonRedisSerializer<>(Object.class);
         // value值的序列化采用fastJsonRedisSerializer
         template.setValueSerializer(fastJsonRedisSerializer);
         template.setHashValueSerializer(fastJsonRedisSerializer);
-        // fastjson 升级到 1.2.83 后需要指定序列化白名单
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.domain");
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.service.dto");
-        // 模块内的实体类
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.mnt.domain");
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.quartz.domain");
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.system.domain");
-        // 模块内的 Dto
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.mnt.service.dto");
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.quartz.service.dto");
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.security.service.dto");
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.system.service.dto");
-        // 分页返回数据
-        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.utils.PageResult");
+        // 设置fastJson的序列化白名单
+        for (String pack : WHITELIST_STR) {
+            JSONFactory.getDefaultObjectReaderProvider().addAutoTypeAccept(pack);
+        }
         // key的序列化采用StringRedisSerializer
         template.setKeySerializer(new StringRedisSerializer());
         template.setHashKeySerializer(new StringRedisSerializer());
@@ -92,7 +89,7 @@ public class RedisConfiguration {
     }
 
     /**
-     * 缓存管理器，需要指定使用
+     * 缓存管理器
      * @param redisConnectionFactory /
      * @return 缓存管理器
      */
@@ -105,9 +102,7 @@ public class RedisConfiguration {
     }
 
     /**
-     * 自定义缓存key生成策略，需要在缓存注解中使用keyGenerator才会生效
-     * 默认是使用SimpleKeyGenerator生成的key
-     * 继承 CachingConfigurerSupport 后，才会默认生效这个生成器，暂时没找到其他方式默认生效，如果有请PR，谢谢
+     * 自定义缓存key生成策略
      */
     @Bean
     public KeyGenerator keyGenerator() {
@@ -126,13 +121,13 @@ public class RedisConfiguration {
             }
             // 转为JSON字符串
             String jsonString = JSON.toJSONString(container);
-            // 做SHA256 Hash计算，得到一个SHA256摘要作为Key
-            return DigestUtils.sha256Hex(jsonString);
+            // 使用 MurmurHash 生成 hash
+            return Integer.toHexString(MurmurHash3.hash32x86(jsonString.getBytes()));
         };
     }
 
     @Bean
-    @SuppressWarnings("all")
+    @SuppressWarnings({"unchecked","all"})
     public CacheErrorHandler errorHandler() {
         return new SimpleCacheErrorHandler() {
             @Override
@@ -174,15 +169,17 @@ public class RedisConfiguration {
         }
 
         @Override
-        public byte[] serialize(T t) {
+        public byte[] serialize(T t) throws SerializationException
+        {
             if (t == null) {
                 return new byte[0];
             }
-            return JSON.toJSONString(t, SerializerFeature.WriteClassName).getBytes(StandardCharsets.UTF_8);
+            return JSON.toJSONString(t, JSONWriter.Feature.WriteClassName).getBytes(StandardCharsets.UTF_8);
         }
 
         @Override
-        public T deserialize(byte[] bytes) {
+        public T deserialize(byte[] bytes) throws SerializationException
+        {
             if (bytes == null || bytes.length == 0) {
                 return null;
             }
